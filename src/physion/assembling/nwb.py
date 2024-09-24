@@ -16,7 +16,7 @@ from physion.assembling.tools import load_FaceCamera_data
 from physion.assembling.tools import build_subsampling_from_freq
 from physion.assembling.add_ophys import add_ophys
 from physion.utils.paths import python_path
-
+from physion.visual_stim.build import build_stim as build_visualStim
 
 ALL_MODALITIES = ['raw_CaImaging', 'processed_CaImaging',
                   'raw_FaceCamera', 'Pupil', 'FaceMotion',
@@ -43,6 +43,23 @@ def build_NWB_func(args):
         metadata = np.load(os.path.join(args.datafolder, 'metadata.npy'),
                            allow_pickle=True).item()
 
+    # add visual stimulation protocol parameters to the metadata:
+    if os.path.isfile(os.path.join(args.datafolder, 'protocol.json')):
+        with open(os.path.join(args.datafolder, 'protocol.json'),
+                  'r', encoding='utf-8') as f:
+            protocol = json.load(f)
+
+        if protocol['Presentation']=='multiprotocol':
+            # for multi-protocols we rebuild subprotocol parameters for security
+            protocol['no-window'] = True
+            stim = build_visualStim(protocol)
+            protocol = stim.protocol
+
+        # we add all protocol parameters to the metadata:
+        for key in protocol:
+            metadata[key] = protocol[key]
+
+    # some cleanup
     if 'date' not in metadata:
         metadata['date'] = metadata['filename'][-19:-9]
         metadata['time'] = metadata['filename'][-8:]
@@ -60,6 +77,16 @@ def build_NWB_func(args):
                 int(Time[0]),int(Time[1]),int(Time[2]),tzinfo=tzlocal())
 
     # subject info
+    if args.verbose:
+        try:
+            subject_file = [f for f in os.listdir(args.datafolder) if '.xlsx' in f][0]
+            print('- Adding Subject data from the file: "%s" (TO BE DONE)' % subject_file)
+        except BaseException:
+            print('[!!] / ! \\ no Subject .xlsx file found / ! \\ ')
+
+    #################################
+    # Implement READ from CSV here ##
+    #################################
     dob = ['1988', '4', '24'] # non-sense by default
     if 'subject_props' in metadata and (metadata['subject_props'] is not None):
         subject_props = metadata['subject_props']
@@ -67,7 +94,7 @@ def build_NWB_func(args):
             dob = subject_props['Date-of-Birth'].split('/')[::-1]
     else:
         subject_props = {}
-        print('subject properties not in metadata ...')
+        # print('subject properties not in metadata ...')
 
     # override a few properties (when curating/rebuilding datafiles)
     if hasattr(args, 'subject_id') and ('subject_id' in subject_props):
@@ -163,15 +190,35 @@ def build_NWB_func(args):
     # ####         Visual Stimulation           #######
     # #################################################
     
-    if (metadata['VisualStim'] and ('VisualStim' in args.modalities)) and os.path.isfile(os.path.join(args.datafolder, 'visual-stim.npy')):
+    if (metadata['VisualStim'] and ('VisualStim' in args.modalities))\
+            and os.path.isfile(os.path.join(args.datafolder, 'visual-stim.npy')):
+
+        # using Annotation TimeSeries to store the protocol parameter file
+        if os.path.isfile(os.path.join(args.datafolder, 'protocol.json')):
+            with open(os.path.join(args.datafolder, 'protocol.json'),
+                      'r', encoding='utf-8') as f:
+                protocol = json.load(f)
+            nwbfile.add_trial_column(name="stim", description=str(protocol))
+            nwbfile.add_trial(0., 1., stim=str(protocol))
+
+            if protocol['Presentation']=='multiprotocol':
+                i = 1
+                fns = os.path.join(args.datafolder, 'subprotocols', 'Protocol-%i.json' % i)
+                while os.path.isfile(fns):
+                    with open(fns, 'r', encoding='utf-8') as f:
+                        p = json.load(f)
+                    nwbfile.add_trial(i+0., i+1., stim=str(p))
+                    i+=1
+                    fns = os.path.join(args.datafolder, 'subprotocols', 'Protocol-%i.json' % i)
+
 
         # preprocessing photodiode signal
         _, Psignal = resample_signal(NIdaq_data['analog'][0],
                                      original_freq=float(metadata['NIdaq-acquisition-frequency']),
                                      pre_smoothing=2./float(metadata['NIdaq-acquisition-frequency']),
                                      new_freq=args.photodiode_sampling)
-        if 'A1-2P' in metadata['Rig']:
-            Psignal *=-1 # reversing sign on the setup
+        # if 'A1-2P' in metadata['Rig']:
+            # Psignal *=-1 # reversing sign on the setup
 	
         VisualStim = np.load(os.path.join(args.datafolder,
                         'visual-stim.npy'), allow_pickle=True).item()
@@ -280,7 +327,8 @@ def build_NWB_func(args):
 
                 FCS_data = np.load(os.path.join(args.datafolder, 'FaceCamera-summary.npy'),
                                    allow_pickle=True).item()
-                FC_times = FCS_data['times']-NIdaq_Tstart
+                FC_times = FCS_data['times']
+                print(FC_times)
 
             if ('raw_FaceCamera' in args.modalities) and (FC_FILES is not None):
                 
@@ -609,7 +657,7 @@ if __name__=='__main__':
     parser.add_argument('-pfs', "--Pupil_frame_sampling", default=0.01, type=float)
     parser.add_argument('-sfs', "--FaceMotion_frame_sampling", default=0.005, type=float)
 
-    parser.add_argument("--destination_folder", type=str, default='')
+    parser.add_argument('-df', "--destination_folder", type=str, default='')
 
     parser.add_argument("--silent", action="store_true")
     parser.add_argument('-v', "--verbose", action="store_true")
@@ -624,13 +672,7 @@ if __name__=='__main__':
     args.FaceMotion_frame_sampling = 0
     args.FaceCamera_frame_sampling = 0
 
-    if os.path.isdir(args.datafolder) and ('NIdaq.npy' in os.listdir(args.datafolder)):
-        if (args.datafolder[-1]==os.path.sep) or (args.datafolder[-1]=='/'):
-            args.datafolder = args.datafolder[:-1]
-        build_NWB_func(args)
-    else:
-        print('"%s" not a valid datafolder' % args.datafolder)
-
+    # if os.path.isdir(args.datafolder) and ('NIdaq.npy' in os.listdir(args.datafolder)):
     if args.recursive:
         for f, _, __ in os.walk(args.datafolder):
             timeFolder = f.split(os.path.sep)[-1]
@@ -641,3 +683,14 @@ if __name__=='__main__':
                 args.datafolder = f
                 args.filename = ''
                 build_NWB_func(args)
+
+    elif os.path.isdir(args.datafolder) and (\
+                ('metadata.npy' in os.listdir(args.datafolder)) or
+                       ('metadata.json' in os.listdir(args.datafolder))):
+        if (args.datafolder[-1]==os.path.sep) or (args.datafolder[-1]=='/'):
+            args.datafolder = args.datafolder[:-1]
+        build_NWB_func(args)
+    else:
+        print('"%s" not a valid datafolder' % args.datafolder)
+        print('                 or missing the "--recursive"/"-R" option !!')
+
