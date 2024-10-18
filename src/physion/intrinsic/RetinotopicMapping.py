@@ -933,6 +933,8 @@ class RetinotopicMappingTrial(object):
                  vasculatureMap,  # vasculature map
                  mouseID,  # str, mouseID
                  dateRecorded,  # int, date recorded, yearmonthday
+                 finalPatches=None,
+                 finalPatchesMarked=None,
                  comments='',  # str, comments of this particular trial
                  params={
                      'phaseMapFilterSigma': 1.,
@@ -961,10 +963,15 @@ class RetinotopicMappingTrial(object):
         self.comments = comments
         self.params = params
 
+        if finalPatchesMarked is not None :
+            self.finalPatches = finalPatchesMarked
+        elif finalPatches is not None :
+            self.finalPatches = finalPatches
+
     def getName(self):
 
         trialName = str(self.dateRecorded) + \
-                    '_M' + str(self.mouseID)
+                    '_' + str(self.mouseID)
 
         return trialName
 
@@ -1075,6 +1082,8 @@ class RetinotopicMappingTrial(object):
         self.aziPowerMapf = aziPowerMapf
         self.signMap = signMap
         self.signMapf = signMapf
+        #self.params['signMapThr'] = 1.5 * np.std(self.signMapf)
+        print(1.5 * np.std(self.signMapf))
 
         return altPosMapf, aziPosMapf, altPowerMapf, aziPowerMapf, signMap, signMapf
 
@@ -2155,7 +2164,8 @@ class RetinotopicMappingTrial(object):
             try:
                 plotAxis.imshow(self.vasculatureMap, cmap='gray', interpolation='nearest')
             except AttributeError:
-                plotAxis.invert_yaxis();pass
+                plotAxis.invert_yaxis()
+                pass
         else:
             plotAxis.invert_yaxis()
 
