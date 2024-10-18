@@ -334,6 +334,12 @@ def build_trial_data(maps,
     output = {'mouseID':subject,
               'comments':comments,
               'dateRecorded':dateRecorded}
+    
+    if 'subject' in maps.keys():
+        output['mouseID'] = maps['subject']
+
+    if 'dateRecorded' in maps.keys():
+        output['dateRecorded'] = maps['dateRecorded']
 
     maps['vasculature'] = load_and_resample_hq('vasculature', maps['datafolder'], 
                                                subject, 
