@@ -1,5 +1,6 @@
 import numpy as np
 from scipy.ndimage import filters
+from scipy.signal import convolve, windows
 from scipy.interpolate import interp1d
 import time
 
@@ -97,6 +98,39 @@ def compute_sliding_minimum(array, Window,
 
     return Flow
 
+def compute_sliding_minmax(array, Window,
+                            pre_smoothing=60): 
+    """
+    Code adapted from https://github.com/faezehrabbani97/Post2p.git
+    Author: Faezeh Rabbani
+    """
+    if pre_smoothing>0:
+        Flow = filters.gaussian_filter1d(array, [0., pre_smoothing])
+    else:
+        Flow = array
+
+    Flow = filters.minimum_filter1d(Flow, Window, mode='wrap')
+    Flow = filters.maximum_filter1d(Flow, Window, mode='wrap')
+
+    return Flow
+
+def compute_hamming(array, Window, percentile) :
+    """
+    Code adapted from https://github.com/faezehrabbani97/Post2p.git
+    Author: Faezeh Rabbani
+    """
+    Flow = []
+    hamming_window = windows.hamming(Window)
+    for i in range(len(array)):
+        F_smooth = convolve(array[i], hamming_window, mode='same') / sum(hamming_window)
+        roi_percentile = np.percentile(F_smooth, percentile)
+        F_below_percentile = np.extract(F_smooth <= roi_percentile, F_smooth)
+        f0 = np.mean(F_below_percentile)
+        f0 = [f0]*len(array[i])
+        Flow.append(f0)
+    Flow = np.array(Flow)
+    return Flow
+
 def compute_F0(data, F,
                method=METHOD,
                percentile=PERCENTILE,
@@ -118,6 +152,12 @@ def compute_F0(data, F,
                                           int(sliding_window/data.CaImaging_dt),
                                           with_smoothing=True)
 
+    elif method=='hamming':
+        return compute_hamming(F, int(0.5/data.CaImaging_dt), percentile)
+    
+    elif method=='sliding_minmax':
+        return compute_sliding_minmax(F, int(60/data.CaImaging_dt))
+    
     else:
         print('\n --- method not recognized --- \n ')
         
