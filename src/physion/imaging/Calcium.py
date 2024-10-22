@@ -281,7 +281,7 @@ def compute_dFoF(data,
             if valid_ROIs[i] :
                 temp[i] *=  valid_roiIndices[j]
                 j+=1
-        valid_roiIndices = temp
+        valid_roiIndices = np.array(temp)
 
     if verbose:
         if np.sum(~valid_roiIndices)>0:
