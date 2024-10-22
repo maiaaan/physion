@@ -169,6 +169,7 @@ def next_ROI_TA(self):
 def select_ROI_TA(self):
     if self.roiPickTA.text() in ['sum', 'all']:
         self.roiIndices = np.arange(self.data.iscell.sum())
+        self.statusBar.showMessage('ROIs set to all ROIs')
     else:
         try:
             self.roiIndices = [int(self.roiPickTA.text())]
@@ -187,6 +188,8 @@ def compute_episodes(self):
         self.EPISODES = EpisodeData(self.data,
                                     protocol_id=self.pbox.currentIndex()-1,
                                     quantities=[self.cQ],
+                                    quantities_args=[{'method_for_F0':'sliding_minmax',
+                                                      'with_computed_neuropil_fact':1}],
                                     dt_sampling=self.samplingBox.value(), # ms
                                     verbose=True)
         self.cQ = self.cQ.replace('-','').replace('_','') # CURRENT QUANTITY
