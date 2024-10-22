@@ -106,7 +106,7 @@ def compute_sliding_minmax(array, Window,
     Author: Faezeh Rabbani
     """
     if pre_smoothing>0:
-        Flow = filters.gaussian_filter1d(array, [0., pre_smoothing])
+        Flow = filters.gaussian_filter(array, [0., pre_smoothing])
     else:
         Flow = array
 
@@ -193,9 +193,10 @@ def compute_neuropil_facor(F, Fneu):
     valid_ROIs, alpha = [],[]
     for i in range(len(Slope)):
         if Slope[i] > 0:
-            valid_ROIs.append(i)
-        else:
             alpha.append(Slope[i])
+            valid_ROIs.append(True)
+        else : 
+            valid_ROIs.append(False)
     alpha = np.mean(alpha)
     return alpha, valid_ROIs
 
@@ -234,6 +235,7 @@ def compute_dFoF(data,
     # Step 0)
     if with_computed_neuropil_fact :
         neuropil_correction_factor, valid_ROIs = compute_neuropil_facor(data.rawFluo, data.neuropil)
+        print('neuropil correction factor computed:', neuropil_correction_factor)
 
     if (neuropil_correction_factor>1) or (neuropil_correction_factor<0):
         print('[!!] neuropil_correction_factor has to be in the interval [0.,1]')
@@ -272,6 +274,15 @@ def compute_dFoF(data,
         data.dFoF = filters.gaussian_filter1d(data.dFoF, smoothing, axis=1)
 
     #######################################################################
+    if with_computed_neuropil_fact :
+        temp = valid_ROIs
+        j=0
+        for i in range(len(valid_ROIs)) :
+            if valid_ROIs[i] :
+                temp[i] *=  valid_roiIndices[j]
+                j+=1
+        valid_roiIndices = temp
+
     if verbose:
         if np.sum(~valid_roiIndices)>0:
             print('\n  ** %i ROIs were discarded with the positive-F0 and Neuropil-Factor criteria (%.1f%%) ** \n'\
