@@ -2,6 +2,7 @@ import numpy as np
 from scipy.ndimage import filters
 from scipy.signal import convolve, windows
 from scipy.interpolate import interp1d
+from sklearn.linear_model import LinearRegression
 import time
 
 ##############################################################################
@@ -160,8 +161,43 @@ def compute_F0(data, F,
     
     else:
         print('\n --- method not recognized --- \n ')
-        
 
+
+def compute_neuropil_facor(F, Fneu):
+    """
+    Code adapted from https://github.com/faezehrabbani97/Post2p.git
+    Author: Faezeh Rabbani
+    """
+    Slope = []
+    per = np.arange(5, 101, 5)
+    for k in range(len(F)):
+        b = 0
+        All_F, percentile_Fneu = [], []
+        for i in per:
+            percentile_before = np.percentile(Fneu[k], b)
+            percentile_now = np.percentile(Fneu[k], i)
+            index_percentile_i = np.where((percentile_before <= Fneu[k]) & (Fneu[k] < percentile_now))
+            b = i
+            F_percentile_i = F[k][index_percentile_i]
+            perc_F_i = np.percentile(F_percentile_i, 5)
+            percentile_Fneu.append(percentile_now)
+            All_F.append(perc_F_i)
+
+        #fitting a linear regression model
+        x = np.array(percentile_Fneu).reshape(-1, 1)
+        y = np.array(All_F)
+        model = LinearRegression()
+        model.fit(x, y)
+        Slope.append(model.coef_[0])
+    
+    valid_ROIs, alpha = [],[]
+    for i in range(len(Slope)):
+        if Slope[i] > 0:
+            valid_ROIs.append(i)
+        else:
+            alpha.append(Slope[i])
+    alpha = np.mean(alpha)
+    return alpha, valid_ROIs
 
 def compute_dFoF(data,  
                  roi_to_neuropil_fluo_inclusion_factor=ROI_TO_NEUROPIL_INCLUSION_FACTOR,
@@ -171,7 +207,8 @@ def compute_dFoF(data,
                  sliding_window=T_SLIDING,
                  with_correctedFluo_and_F0=False,
                  smoothing=None,
-                 verbose=True):
+                 verbose=True, 
+                 with_computed_neuropil_fact=False):
     """
     -----------------
     Compute the *Delta F over F* quantity
@@ -192,17 +229,26 @@ def compute_dFoF(data,
     if verbose:
         tick = time.time()
         print('\ncalculating dF/F with method "%s" [...]' % method_for_F0)
-        
+    
+
+    # Step 0)
+    if with_computed_neuropil_fact :
+        neuropil_correction_factor, valid_ROIs = compute_neuropil_facor(data.rawFluo, data.neuropil)
+
     if (neuropil_correction_factor>1) or (neuropil_correction_factor<0):
         print('[!!] neuropil_correction_factor has to be in the interval [0.,1]')
         print('neuropil_correction_factor set to 0 !')
         neuropil_correction_factor=0.
 
     #######################################################################
-
+    
     # Step 1) ->  performing neuropil correction 
-    correctedFluo = data.rawFluo-\
+    if not with_computed_neuropil_fact :
+        correctedFluo = data.rawFluo-\
             neuropil_correction_factor*data.neuropil
+    else :
+        correctedFluo = data.rawFluo[valid_ROIs, :]-\
+            neuropil_correction_factor*data.neuropil[valid_ROIs, :]
     
     # Step 2) -> compute the F0 term (~ sliding minimum/percentile)
     correctedFluo0 = compute_F0(data, correctedFluo,
