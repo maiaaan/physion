@@ -374,7 +374,8 @@ class Data:
                    specific_time_sampling=None,
                    smoothing=None,
                    interpolation='linear',
-                   verbose=True):
+                   verbose=True,
+                   with_computed_neuropil_fact=False):
         """
         creates self.dFoF, self.t_dFoF
         """
@@ -405,7 +406,8 @@ class Data:
                             with_correctedFluo_and_F0=\
                                     with_correctedFluo_and_F0,
                             smoothing=smoothing,
-                            verbose=verbose)
+                            verbose=verbose,
+                            with_computed_neuropil_fact=with_computed_neuropil_fact)
 
     def build_Zscore_dFoF(self, verbose=True):
         """
