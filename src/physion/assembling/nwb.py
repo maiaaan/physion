@@ -26,15 +26,9 @@ ALL_MODALITIES = ['raw_CaImaging', 'processed_CaImaging',
                   'VisualStim',
                   'Locomotion'] 
 
-
-def build_NWB_func(args):
-    
-    if args.verbose:
-        print('- Initializing NWB file for "%s" [...]' % args.datafolder)
-
-    #################################################
-    ####            BASIC metadata            #######
-    #################################################
+def read_metadata(args):
+    """
+    """
 
     if os.path.isfile(os.path.join(args.datafolder, 'metadata.json')):
         with open(os.path.join(args.datafolder, 'metadata.json'),
@@ -44,6 +38,16 @@ def build_NWB_func(args):
         # (deprecated, loading from metadata.npy)
         metadata = np.load(os.path.join(args.datafolder, 'metadata.npy'),
                            allow_pickle=True).item()
+
+    return metadata 
+
+def build_NWB_func(args):
+    """
+    """
+    if args.verbose:
+        print('- Initializing NWB file for "%s" [...]' % args.datafolder)
+
+    metadata = read_metadata(args)
 
     # add visual stimulation protocol parameters to the metadata:
     if os.path.isfile(os.path.join(args.datafolder, 'protocol.json')):
@@ -84,7 +88,7 @@ def build_NWB_func(args):
             subject_file = [f for f in os.listdir(args.datafolder) if '.xlsx' in f][0]
             print('- Adding Subject data from the file: "%s" (TO BE DONE)' % subject_file)
         except BaseException:
-            print('[!!] / ! \\ no Subject .xlsx file found / ! \\ ')
+            print('     [!!] no Subject .xlsx file found [!!]   ')
 
     #################################
     # Implement READ from CSV here ##
@@ -328,10 +332,10 @@ def build_NWB_func(args):
 
         FC_times = check_times(FC_times, NIdaq_Tstart)
 
-        if ('raw_FaceCamera' in args.modalities) and (fcamData is not None):
-            
-            FC_times = fcamData.times
-            FC_times = check_times(FC_times, NIdaq_Tstart)
+        if ('raw_FaceCamera' in args.modalities) and (len(fcamData.times)>0):
+           
+            FC_timesR = fcamData.times
+            FC_timesR = check_times(FC_timesR, NIdaq_Tstart)
 
             imgR = fcamData.get(0)
             FC_SUBSAMPLING = build_subsampling_from_freq(args.FaceCamera_frame_sampling,
@@ -352,30 +356,7 @@ def build_NWB_func(args):
             FaceCamera_frames = pynwb.image.ImageSeries(name='FaceCamera',
                                                         data=FC_dataI,
                                                         unit='NA',
-                                                        timestamps=FC_times[FC_SUBSAMPLING])
-            nwbfile.add_acquisition(FaceCamera_frames)
-                
-        elif ('raw_FaceCamera' in args.modalities) and (FCS_data is not None):
-
-            imgR = FCS_data['sample_frames'][0]
-            def FaceCamera_frame_generator():
-                for i in range(len(FCS_data['sample_frames'])):
-                    try:
-                        yield FCS_data['sample_frames'][i].astype(np.uint8).reshape(imgR.shape)
-                    except ValueError:
-                        print('Pb in FaceCamera with frame #', i)
-                        yield np.zeros(imgR.shape)[shape_cond]
-                        
-            FC_dataI = DataChunkIterator(data=FaceCamera_frame_generator(),
-                                         maxshape=(None, *imgR.shape),
-                                         dtype=np.dtype(np.uint8))
-            FaceCamera_frames = pynwb.image.ImageSeries(name='FaceCamera',
-                data=FC_dataI,
-                unit='NA',
-                timestamps=FC_times[np.linspace(0, len(FC_times)-1, 
-                                                len(FCS_data['sample_frames']), 
-                                                dtype=int)])
-                # timestamps=FC_times[FCS_data['sample_frames_index']]) # REPLACE THE ABOVE LINE AFTER SEPT 16th !!!
+                                                        timestamps=FC_timesR[FC_SUBSAMPLING])
             nwbfile.add_acquisition(FaceCamera_frames)
                 
         else:
@@ -418,7 +399,7 @@ def build_NWB_func(args):
                         pupil_module.add(PupilProp)
 
                 # then add the frames subsampled
-                if fcamData is not None:
+                if len(fcamData.times)>0:
                     imgP = fcamData.get(0)
                     x, y = np.meshgrid(np.arange(0,imgP.shape[0]), np.arange(0,imgP.shape[1]), indexing='ij')
                     cond = (x>=dataP['xmin']) & (x<=dataP['xmax']) & (y>=dataP['ymin']) & (y<=dataP['ymax'])
@@ -663,6 +644,12 @@ if __name__=='__main__':
     parser.add_argument('-sfs', "--FaceMotion_frame_sampling", default=0.005, type=float)
 
     parser.add_argument('-df', "--destination_folder", type=str, default='')
+    parser.add_argument('-op', "--only_protocol", type=str, default='',
+                        help="""
+                        In recursive mode,
+                        if you want to build files for a given protocol only
+                        e.g.: -oe drifting-gratings 
+                        """)
 
     parser.add_argument("--silent", action="store_true")
     parser.add_argument('-v', "--verbose", action="store_true")
@@ -687,7 +674,17 @@ if __name__=='__main__':
                 print(' processing "%s" [...] ' % f)
                 args.datafolder = f
                 args.filename = ''
-                build_NWB_func(args)
+                if args.only_protocol!='':
+                    # we check that it matches the protocol
+                    metadata = read_metadata(args)
+                    if args.only_protocol in metadata['protocol']:
+                        build_NWB_func(args)
+                    else:
+                        print('')
+                        print('  [!!]  ignoring:', f, ' of protocol', metadata['protocol'])
+                        print('')
+                else:
+                    build_NWB_func(args)
 
     elif os.path.isdir(args.datafolder) and (\
                 ('metadata.npy' in os.listdir(args.datafolder)) or
