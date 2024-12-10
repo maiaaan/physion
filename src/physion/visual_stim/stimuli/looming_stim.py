@@ -56,16 +56,34 @@ class stim(visual_stim):
                      type='circle')
         return img
 
-"""
+
     def plot_stim_picture(self, episode,
-                          ax=None, parent=None, label=None, enhance=False,
+                          ax=None, 
+                          label=None,
+                          vse=False,
+                          with_scale=False,
                           arrow={'length':10,
                                  'width_factor':0.05,
-                                 'color':'red'}):
+                                 'color':'red'},
+                          with_mask=False):
 
-        ax = self.show_frame(episode, ax=ax, label=label, enhance=enhance,
-                             parent=parent)
-
+        if with_scale:
+            if self.units in ['cm', 'lin-deg']:
+                label={'size':10/self.heights.max()*self.z.max(),
+                       'label':'10cm ',
+                       'shift_factor':0.02,
+                       'lw':1, 'fontsize':10}
+            else:
+                label={'size':20,'label':'20$^o$  ',
+                       'shift_factor':0.02,
+                       'lw':1, 'fontsize':10}
+        else:
+            label=None
+        
+        tstart = 0.7
+        ax = self.show_frame(episode, tstart, ax=ax, label=label, with_mask=with_mask)
+        
+        '''
         l = self.experiment['radius-end'][episode]/3.8 # just like above
         for d in np.linspace(0, 2*np.pi, 3, endpoint=False):
             arrow['center'] = [self.experiment['x-center'][episode]+np.cos(d)*l+\
@@ -75,9 +93,9 @@ class stim(visual_stim):
                 
             arrow['direction'] = -180*d/np.pi
             self.add_arrow(arrow, ax)
-            
+        '''
         return ax
-"""
+
 
 if __name__=='__main__':
 
