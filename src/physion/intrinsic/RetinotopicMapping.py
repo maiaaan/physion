@@ -978,7 +978,11 @@ class RetinotopicMappingTrial(object):
     def __str__(self):
         return 'A retinotopic mapping trial: ' + self.getName()
 
-    def _getSignMap(self, isReverse=False, isPlot=False, isFixedRange=True):
+    def _getSignMap(self, 
+                    isReverse=False, 
+                    onlySMplot=False,
+                    isPlot=False, 
+                    isFixedRange=True):
 
         altPosMapf = ni.filters.gaussian_filter(self.altPosMap,
                                                 self.params['phaseMapFilterSigma'])
@@ -1004,7 +1008,7 @@ class RetinotopicMappingTrial(object):
         signMapf = ni.filters.gaussian_filter(signMap,
                                               self.params['signMapFilterSigma'])
 
-        if isPlot:
+        if isPlot or onlySMplot:
             f1 = plt.figure(figsize=(7, 3.4))
             f1_231 = f1.add_subplot(231)
             if isFixedRange:
@@ -1055,6 +1059,7 @@ class RetinotopicMappingTrial(object):
             plt.axis('off')
             f1_236.set_title('sign map filtered')
 
+        if isPlot:
             f2 = plt.figure(figsize=(4, 1.4))
             f2_121 = f2.add_subplot(121)
             if altPowerMapf is not None:
@@ -1364,7 +1369,7 @@ class RetinotopicMappingTrial(object):
 
         return patches
 
-    def _mergePatches(self, isPlot=False):
+    def _mergePatches(self, isPlot=False, onlyPplot=False):
 
         if not hasattr(self, 'patchesAfterSplit'):
             self._splitPatches()
@@ -1503,7 +1508,7 @@ class RetinotopicMappingTrial(object):
 
         finalPatches = sortPatches(patches)
 
-        if isPlot:
+        if onlyPplot or isPlot:
             try:
                 zoom = self.vasculatureMap.shape[0] / self.altPosMap.shape[0]
             except:
