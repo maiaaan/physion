@@ -131,3 +131,6 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# movies
+src/physion/acquisition/protocols/movies
