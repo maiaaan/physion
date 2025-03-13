@@ -314,7 +314,7 @@ def open_intrinsic_folder(self):
         self.timestamps = str(self.datafolder.split(os.path.sep)[-2:])
 
         try:
-            self.angleButton.setValue(int(metadata['headplate-angle-from-rig-axis']))
+            self.angleButton.setValue(int(float(metadata['headplate-angle-from-rig-axis'])))
         except BaseException:
             print(' pb with:', 'headplate-angle', metadata['headplate-angle-from-rig-axis'])
 
